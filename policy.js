@@ -26,7 +26,7 @@ export function sameReport(before, current) {
     before.updatedAt.nanoseconds === current.updatedAt.nanoseconds;
 }
 export function participantCredential(code) {
-  const match = /^(P\d{2,3})-([A-Za-z0-9_-]{20,128})$/i.exec(code.trim());
-  if (!match) throw Error('参加者コードの形式が違います（秘密部分は20〜128文字）');
+  const match = /^(P\d{2,3})-([^\r\n]{9,128})$/i.exec(code.trim());
+  if (!match) throw Error('参加者コードの形式が違います（P01-の後に登録済みパスワード9〜128文字）');
   return {email: match[1].toLowerCase() + '@players.invalid', password: match[2]};
 }
