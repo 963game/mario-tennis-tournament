@@ -1,5 +1,9 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mario Tennis Fever｜接続検証</title><style>
-:root{color-scheme:dark;font-family:system-ui,sans-serif}body{margin:0;background:#0c1729;color:#f1f5ff}header,main{max-width:850px;margin:auto;padding:18px}header{border-bottom:1px solid #345}h1{font-size:22px}section{background:#182840;border:1px solid #38516b;border-radius:12px;padding:16px;margin:12px 0}button,input{font:inherit;padding:10px;border-radius:7px;border:1px solid #69809e}button:disabled{opacity:.45;cursor:not-allowed}button{background:#2e6cc3;color:white;cursor:pointer}input{background:#09172a;color:white;max-width:90%}p,small{line-height:1.6}small{color:#b9c9df}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}nav{display:flex;gap:8px;flex-wrap:wrap}nav button:disabled{opacity:.45;cursor:not-allowed}button{background:#29425f}.hidden{display:none}.msg{padding:8px;border-bottom:1px solid #3a5067;white-space:pre-wrap;overflow-wrap:anywhere}#notice{color:#fbd38d}#rooms section{background:#102139}</style></head><body><header><h1>🎾 Mario Tennis Fever｜権限修正版 v2</h1><small>Firebase接続・権限テスト専用。大会本番にはまだ使えません。</small></header><main><p id="notice">Firebase設定を確認中…</p><nav><button data-tab="rules">ルール</button><button data-tab="progress">試合進捗</button><button data-tab="teams">チームメンバー</button><button data-tab="cards">対戦カード</button></nav><div id="rules" class="pane"><section><h2>ルール</h2><p>4チーム・4部門、1勝1pt、同点時は得失ゲーム差。スコアは対戦相手の承認後、運営が確認して公開します。</p></section></div><div id="progress" class="pane hidden"><section><h2>公開試合進捗</h2><div id="publicResults">公開データ待機中</div></section></div><div id="teams" class="pane hidden"><section><h2>チームメンバー</h2><div id="publicTeams">公開データ待機中</div></section></div><div id="cards" class="pane hidden"><section><h2>参加者コードで入室</h2><p>コードは <code>P01-登録済みパスワード</code> の形式（パスワードは9〜128文字）。Firebaseアカウント作成操作は不要。</p><div class="row"><input id="code" type="password" autocomplete="off" placeholder="参加者コード"><button id="login">入室</button><button id="logout">退室</button></div><p id="who"></p></section><div id="rooms"></div></div></main><script type="module">
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mario Tennis Fever｜大会サイト動作確認</title><style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif}body{margin:0;background:#0c1729;color:#f1f5ff}header,main{max-width:850px;margin:auto;padding:18px}header{border-bottom:1px solid #345}h1{font-size:22px}section{background:#182840;border:1px solid #38516b;border-radius:12px;padding:16px;margin:12px 0}button,input{font:inherit;padding:10px;border-radius:7px;border:1px solid #69809e}button:disabled{opacity:.45;cursor:not-allowed}button{background:#2e6cc3;color:white;cursor:pointer}input{background:#09172a;color:white;max-width:90%}p,small{line-height:1.6}small{color:#b9c9df}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}nav{display:flex;gap:8px;flex-wrap:wrap}nav button:disabled{opacity:.45;cursor:not-allowed}button{background:#29425f}.hidden{display:none}.msg{padding:8px;border-bottom:1px solid #3a5067;white-space:pre-wrap;overflow-wrap:anywhere}#notice{color:#fbd38d}#rooms section{background:#102139}</style></head><body><header><h1>🎾 Mario Tennis Fever｜権限修正版 v2</h1><small>Firebase接続・権限テスト専用。大会本番にはまだ使えません。</small></header><main><p id="notice">Firebase設定を確認中…</p><nav><button data-tab="rules">ルール</button><button data-tab="progress">試合進捗</button><button data-tab="teams">チームメンバー</button><button data-tab="cards">対戦カード</button></nav><div id="rules" class="pane"><section><h2>ルール</h2><p>4チーム・4部門、1勝につき1ポイント。同点時は得失ゲーム差。スコアは対戦相手の承認後、運営が確認して公開します。</p>
+<h3>大会の4部門</h3><ul><li>クラシック・シングルス</li><li>フィーバー・シングルス</li><li>クラシック・ダブルス</li><li>フィーバー・ダブルス</li></ul>
+<h3>各部門は3ラウンド</h3><p>各ラウンドは2試合同時進行です。各部門6試合、全4部門で24試合を行います。</p>
+<ul><li>第1ラウンド：Aチーム vs Bチーム ／ Cチーム vs Dチーム</li><li>第2ラウンド：Aチーム vs Cチーム ／ Bチーム vs Dチーム</li><li>第3ラウンド：Aチーム vs Dチーム ／ Bチーム vs Cチーム</li></ul>
+</section></div><div id="progress" class="pane hidden"><section><h2>公開試合進捗</h2><div id="publicResults">公開データ待機中</div></section></div><div id="teams" class="pane hidden"><section><h2>チームメンバー</h2><div id="publicTeams">公開データ待機中</div></section></div><div id="cards" class="pane hidden"><section><h2>参加者コードで入室</h2><p>コードは <code>P01-登録済みパスワード</code> の形式（パスワードは9〜128文字）。Firebaseアカウント作成操作は不要。</p><div class="row"><input id="code" type="password" autocomplete="off" placeholder="参加者コード"><button id="login">入室</button><button id="logout">退室</button></div><p id="who"></p></section><div id="rooms"></div></div></main><script type="module">
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import {canReport,canReview,validScore,participantCredential,sameReport} from './policy.js';
@@ -11,24 +15,42 @@ let auth,db,stopRooms=()=>{},stopPublic=()=>{},stopTeams=()=>{},roomStops=[];
 function cleanup(){stopRooms();cleanupRoomViews();}
 function tab(name){document.querySelectorAll('.pane').forEach(el=>el.classList.toggle('hidden',el.id!==name));}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
-function err(e){notice('操作できません：'+(e?.code||e?.message||e));}
+const statusNames={unreported:'未報告',pending:'相手チームの確認待ち',needs_fix:'訂正依頼あり',confirmed:'確定'};
+function statusText(status){return Object.hasOwn(statusNames,status)?statusNames[status]:'状態を確認できません。運営にお知らせください';}
+function err(e){
+ const messages={
+  'auth/invalid-credential':'参加者コードが違います。番号とパスワードをご確認ください。',
+  'auth/invalid-login-credentials':'参加者コードが違います。番号とパスワードをご確認ください。',
+  'auth/wrong-password':'参加者コードが違います。番号とパスワードをご確認ください。',
+  'auth/user-not-found':'参加者コードが違います。番号とパスワードをご確認ください。',
+  'auth/invalid-email':'参加者コードの番号をご確認ください。',
+  'auth/too-many-requests':'操作が続いたため一時的に制限されています。しばらく待ってからお試しください。',
+  'auth/network-request-failed':'通信できません。インターネット接続をご確認ください。',
+  'auth/user-disabled':'この参加者コードは利用できません。運営にお問い合わせください。',
+  'permission-denied':'この情報の閲覧や操作は許可されていません。入室状態をご確認ください。',
+  'unavailable':'通信できません。接続を確認し、しばらく待ってからお試しください。',
+  'auth/operation-not-allowed':'入室の設定を確認する必要があります。運営にお問い合わせください。'
+ };
+ const detail=messages[e?.code] || (!e?.code && /[ぁ-んァ-ヶ一-龠]/.test(e?.message||'')?e.message:'操作を完了できませんでした。再読み込みしても直らない場合は運営にお問い合わせください。');
+ notice('お知らせ：'+detail);
+}
 try {
   const {firebaseConfig}=await import('./firebase-config.js');
   if(firebaseConfig.apiKey==='REPLACE_ME')throw Error('firebase-config.js にFirebase設定を入力してください');
   const app=initializeApp(firebaseConfig);auth=getAuth(app);await setPersistence(auth,browserSessionPersistence);db=getFirestore(app);
   stopPublic=onSnapshot(doc(db,'public','overview'),snap=>{const d=snap.data();$('publicResults').textContent=d?.summary||'公開結果は未登録です';},err);
   stopTeams=onSnapshot(doc(db,'public','teams'),snap=>{const d=snap.data();$('publicTeams').textContent=d?.summary||'チーム情報は未登録です';},err);
-  onAuthStateChanged(auth,user=>{cleanup();$('who').textContent=user?'認証済み（'+user.uid.slice(0,8)+'…）':'未入室';if(!user){notice('公開画面は閲覧できます。対戦カードは参加者コードが必要です。');return;}
-    notice('参加者認証済み。自分の対戦カードを読み込みます。');
+  onAuthStateChanged(auth,user=>{cleanup();$('who').textContent=user?'入室中（'+(user.email?.split('@')[0]?.toUpperCase()||'参加者')+'）':'未入室';if(!user){notice('公開画面は閲覧できます。対戦カードは参加者コードが必要です。');return;}
+    notice('入室しました。自分の対戦カードを読み込みます。');
     stopRooms=onSnapshot(query(collection(db,'rooms'),where('memberUids','array-contains',user.uid)),snapshot=>{
-      cleanupRoomViews();if(snapshot.empty)$('rooms').textContent='割り当てられた試合はありません。運営にUID登録をご確認ください。';snapshot.forEach(room=>renderRoom(room.id,room.data(),user.uid));
+      cleanupRoomViews();if(snapshot.empty)$('rooms').textContent='現在、あなたの試合は登録されていません。運営にお問い合わせください。';snapshot.forEach(room=>renderRoom(room.id,room.data(),user.uid));if(!snapshot.empty)notice('入室中です。自分の対戦カードを表示しています。');
     },err);
   });
   $('login').onclick=async()=>{try{const {email,password}=participantCredential($('code').value);await signInWithEmailAndPassword(auth,email,password);$('code').value='';}catch(e){err(e)}};
   $('logout').onclick=()=>signOut(auth).catch(err);
 }catch(e){err(e)}
 function cleanupRoomViews(){roomStops.forEach(fn=>fn());roomStops=[];$('rooms').replaceChildren();}
-function renderRoom(id,d,uid){const section=document.createElement('section');section.innerHTML=`<h3>${esc(d.title||id)}</h3><p>状態：<b class="status">${esc(d.status)}</b></p><p class="score">${d.status==='unreported'?'未報告':esc(d.scoreA)+' - '+esc(d.scoreB)}</p><div class="row"><input class="a" type="number" min="0" max="99" placeholder="A"><input class="b" type="number" min="0" max="99" placeholder="B"><button class="report">結果報告</button><button class="approve">承認</button><button class="fix">訂正依頼</button></div><h4>試合チャット</h4><div class="messages"></div><div class="row"><input class="body" maxlength="300" placeholder="メッセージ"><button class="send">送信</button></div>`;$('rooms').append(section);
+function renderRoom(id,d,uid){const section=document.createElement('section');section.innerHTML=`<h3>${esc(d.title||id)}</h3><p>状態：<b class="status">${esc(statusText(d.status))}</b></p><p class="score">${d.status==='unreported'?'未報告':esc(d.scoreA)+' - '+esc(d.scoreB)}</p><div class="row"><input class="a" type="number" min="0" max="99" placeholder="A"><input class="b" type="number" min="0" max="99" placeholder="B"><button class="report">結果報告</button><button class="approve">承認</button><button class="fix">訂正依頼</button></div><h4>試合チャット</h4><div class="messages"></div><div class="row"><input class="body" maxlength="300" placeholder="メッセージ"><button class="send">送信</button></div>`;$('rooms').append(section);
  const roomRef=doc(db,'rooms',id),score=validScore;
  section.querySelector('.report').disabled=!canReport(d,uid);
  section.querySelector('.approve').disabled=!canReview(d,uid);
