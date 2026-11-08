@@ -9,7 +9,7 @@
 <div id="csvMapping" hidden><label>登録名に使う列<select id="csvNameColumn"></select></label><label>回答ID・メールなどの識別列（任意）<select id="csvIdentityColumn"></select></label>
 <details><summary>保存する項目を選ぶ</summary><p>選択した回答は運営だけが閲覧できます。不要な項目は外してください。登録名の元の回答と、指定した識別値は保存します。</p><div id="csvFields"></div></details>
 <button id="csvPreviewButton">取り込み内容をプレビュー</button><p id="csvSummary"></p><div id="csvProblems" role="status"></div><div id="csvPreview"></div><button id="csvSave" disabled>確認した内容を名簿に保存</button></div></section>
-<section><h2>参加者コードと名簿</h2><p>本番用P101〜P124を作成します。テスト用P01〜P04は変更しません。1人1コードで複数部門に出場できます。</p><button id="prepareSlots">24人分のコードを自動準備</button><p>作成済みなら再作成は不要です。CSV取り込み時点では所属・部門は決めません。下の手動設定は必要な場合だけ使えます。</p><p id="rosterDraftNotice"></p><div id="roster"></div></section>
+<section><h2>応募回答と実績の確認（運営専用）</h2><p>応募時の自己評価と、運営が確認したゲーム内ランキング・非公式大会の実績をまとめて確認します。評価の重み付けとチーム分けは、資料を確認してから決めます。</p><p id="assessmentNotice" role="status"></p><div id="assessmentRows"></div></section><section><h2>参加者コードと名簿</h2><p>本番用P101〜P124を作成します。テスト用P01〜P04は変更しません。1人1コードで複数部門に出場できます。</p><button id="prepareSlots">24人分のコードを自動準備</button><p>作成済みなら再作成は不要です。CSV取り込み時点では所属・部門は決めません。下の手動設定は必要な場合だけ使えます。</p><p id="rosterDraftNotice"></p><div id="roster"></div></section>
 <section><h2>2. 対戦カード</h2><p>部門分けの保存後、24試合を作成・更新します。確定済みの試合とテスト試合は変更しません。代理出場は同じ人に複数部門を指定して反映します。</p><button id="reflectMatches">部門分けを24試合に反映</button><button id="publishOverview">確定結果を公開画面に反映</button></section>
 <section><h2>チームの表示名</h2><div id="teamNames"></div><button id="saveTeams">表示名を保存</button><small>チームの識別記号は固定されるため、表示名を変更しても所属・承認権限は変わりません。</small></section>
 <section><h2>3. チェックイン受付</h2><p id="acceptingState"></p><button id="toggleAccepting">受付を開始・停止</button><div id="requests"></div></section>

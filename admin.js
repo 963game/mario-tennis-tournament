@@ -5,6 +5,7 @@ import {firebaseConfig} from './firebase-config.js';
 import {divisions,defaultTeams,normalizedName,planRooms,createWorkflows,prepareParticipants,publicMatches} from './tournament.js';
 import {mountCsvImport} from './csv-import-ui.js';
 import {slotFingerprint} from './csv-import.js';
+import {mountAssessment} from './assessment-ui.js';
 const app=initializeApp(firebaseConfig,'operator'),auth=getAuth(app),db=fs.getFirestore(app);
 const provisionAuth=getAuth(initializeApp(firebaseConfig,'provision-participants'));
 await setPersistence(provisionAuth,inMemoryPersistence);
@@ -16,7 +17,8 @@ const drafts=new Map();
 function reportError(e){say(!e?.code && e?.message?e.message:'操作できませんでした。通信と運営権限をご確認ください。アカウント準備中なら同じボタンで再開できます。');}
 async function action(button,fn){if(busy)return;busy=true;button.disabled=true;try{await fn();}catch(e){reportError(e);}finally{busy=false;button.disabled=false;}}
 const csvImporter=mountCsvImport({api:fs,db,getPlayers:()=>players,getDraftCount:()=>drafts.size,runAction:action,say});
-function clear(){stops.forEach(stop=>stop());stops=[];players=[];requests=[];drafts.clear();csvImporter.clear();$('rosterDraftNotice').textContent='';$('roster').replaceChildren();$('requests').replaceChildren();$('operatorPanel').hidden=true;}
+const assessments=mountAssessment({api:fs,db,getPlayers:()=>players,runAction:action,say});
+function clear(){stops.forEach(stop=>stop());stops=[];players=[];requests=[];drafts.clear();csvImporter.clear();assessments.clear();$('rosterDraftNotice').textContent='';$('roster').replaceChildren();$('requests').replaceChildren();$('operatorPanel').hidden=true;}
 await setPersistence(auth,browserLocalPersistence);
 onAuthStateChanged(auth,async user=>{
  const version=++accessVersion;clear();$('operatorLogin').hidden=false;
@@ -27,7 +29,7 @@ onAuthStateChanged(auth,async user=>{
   if(!role.data()?.enabled && token.claims.admin!==true){say('運営権限が未設定です。初回設定手順を確認してください。');return;}
   $('operatorLogin').hidden=true;$('operatorPanel').hidden=false;say('運営として入室中です。');
   stops.push(fs.onSnapshot(fs.collection(db,'participants'),snapshot=>{
-    players=snapshot.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.id.localeCompare(b.id));renderRoster();renderRequests();
+    players=snapshot.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.id.localeCompare(b.id));renderRoster();renderRequests();assessments.render();
   },reportError));
   stops.push(fs.onSnapshot(fs.collection(db,'checkins'),snapshot=>{requests=snapshot.docs.map(d=>({...d.data(),id:d.id}));renderRequests();},reportError));
   stops.push(fs.onSnapshot(fs.doc(db,'settings','checkin'),snapshot=>{accepting=snapshot.data()?.accepting===true;$('acceptingState').textContent=accepting?'受付中':'受付停止中';},reportError));
