@@ -93,9 +93,10 @@ function renderRoom(room,uid,parent){
  const sides=displaySides(room),state=playState(room),card=el('section');card.dataset.room=room.id;card.className='private-match';const heading=el('h4',`${names[sides.left]} vs ${names[sides.right]}`);heading.className='private-team-heading';heading.dataset.teamA=sides.left;heading.dataset.teamB=sides.right;card.append(el('h3',room.title||'動作確認試合'),heading);
  card.append(el('p',`${sides.leftNames.join('・')} ／ ${sides.rightNames.join('・')}`),el('p',state==='waiting'?'待機中：運営の開始をお待ちください。':`状態：${statusNames[room.status]||'状態不明'}`),el('p',`コート：${room.courtName||'ラウンド開始時に公開'}`));
  if(room.hostTeamId){card.append(el('p',`部屋立て：${names[room.hostTeamId]}（左側）。担当チームで部屋を作成し、合流方法を試合チャットで共有してください。`));}else card.append(el('p','部屋立て担当はラウンド開始時に公開されます。'));
+ card.append(el('p',state==='waiting'?'開始後、左側チームが結果を報告し、右側チームが確認・承認します。':`結果報告：${names[sides.left]} ／ 確認・承認：${names[sides.right]}`));
  if(room.status!=='unreported')card.append(el('p',`報告スコア：${sides.leftScore} − ${sides.rightScore}`));
  const inputRow=el('div');inputRow.className='row';const a=el('input'),b=el('input');a.className='a';b.className='b';a.type=b.type='number';a.min=b.min=0;a.max=b.max=99;a.placeholder=names[room.teamA];b.placeholder=names[room.teamB];a.setAttribute('aria-label',`${names[room.teamA]}のスコア`);b.setAttribute('aria-label',`${names[room.teamB]}のスコア`);a.value=inputs.get(room.id)?.a||'';b.value=inputs.get(room.id)?.b||'';
- const report=el('button','結果を報告'),approve=el('button','この結果を承認'),fix=el('button','訂正を依頼');report.disabled=!canReport(room,uid);approve.disabled=fix.disabled=!canReview(room,uid);a.disabled=b.disabled=state!=='active';inputRow.append(...(room.hostTeamId===room.teamB?[b,a]:[a,b]),report,approve,fix);card.append(inputRow);
+ const report=el('button','結果を報告'),approve=el('button','この結果を承認'),fix=el('button','訂正を依頼');report.disabled=!canReport(room,uid);approve.disabled=fix.disabled=!canReview(room,uid);a.disabled=b.disabled=!canReport(room,uid);inputRow.append(...(room.hostTeamId===room.teamB?[b,a]:[a,b]),report,approve,fix);card.append(inputRow);
  const ref=fs.doc(db,'rooms',room.id);
  async function change(status){
   const av=Number(a.value),bv=Number(b.value);if(status==='pending'&&(!a.value||!b.value||!validScore(av,bv)))throw Error('異なる0〜99の整数でスコアを入力してください。');
