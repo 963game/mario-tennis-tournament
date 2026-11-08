@@ -10,6 +10,7 @@ export function pairRounds(teams){
 export function publishedMatch(room){
  return {divisionId:room.divisionId,round:room.round,teamA:room.teamA,teamB:room.teamB,
   teamANames:[...(room.teamANames||[])],teamBNames:[...(room.teamBNames||[])],status:room.status,
+  roundManaged:room.roundManaged===true,playState:room.status==='confirmed'?'finished':room.roundManaged?(room.playState==='active'?'active':'waiting'):'active',courtName:room.courtName||'',hostTeamId:room.hostTeamId||'',
   scoreA:room.status==='confirmed'?room.scoreA:null,scoreB:room.status==='confirmed'?room.scoreB:null};
 }
 export function standings(matches,teams){
@@ -44,7 +45,7 @@ export function planDepartmentRooms(players,teams,slots){
   if(new Set([...a,...b].map(p=>p.authUid)).size!==a.length+b.length)throw Error('同じ認証アカウントが重複しています。');
   return {id:`${d.id}-r${round+1}-${teamA}${teamB}`,divisionId:d.id,round:round+1,title:`${d.name}・第${round+1}ラウンド`,teamA,teamB,
    teamAUids:a.map(p=>p.authUid),teamBUids:b.map(p=>p.authUid),memberUids:[...a,...b].map(p=>p.authUid),teamANames:a.map(p=>p.name),teamBNames:b.map(p=>p.name),
-   status:'unreported',scoreA:0,scoreB:0,reportedBy:'',approvedBy:'',publicReady:true};
+   status:'unreported',scoreA:0,scoreB:0,reportedBy:'',approvedBy:'',publicReady:true,roundManaged:true,playState:'waiting',courtName:'',hostTeamId:''};
  })));
  return rooms;
 }
@@ -87,7 +88,8 @@ export async function publishDepartments(api,db,players,state,{proxy=false}={}){
    tx.set(api.doc(db,'participantAccess',p.authUid),{participantId:p.id,name:p.name,active:true});
   }
   tx.set(api.doc(db,'public','teams'),teamPublicData(players,state.teamIds,state.departmentDraft.slots));
-  tx.set(api.doc(db,'public','config'),{teamIds:state.teamIds,divisionsPublished:true,updatedAt:api.serverTimestamp()});
+  const currentRound=state.roundControl?.plan?.[state.roundControl.index];
+  tx.set(api.doc(db,'public','config'),{teamIds:state.teamIds,divisionsPublished:true,roundManaged:true,roundIndex:state.roundControl?.index??-1,currentRound:currentRound?{divisionId:currentRound.divisionId,round:currentRound.round,courtName:currentRound.courtName}:null,updatedAt:api.serverTimestamp()});
   tx.set(stateRef,{...state,divisionsPublished:true,publishedSlots:state.departmentDraft.slots,updatedAt:api.serverTimestamp()});
  });
 }

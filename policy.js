@@ -8,10 +8,10 @@ export function teamOf(room, uid) {
 }
 export function canReview(room, uid) {
   const mine = teamOf(room, uid), reporter = teamOf(room, room.reportedBy);
-  return room.status === 'pending' && !!mine && !!reporter && mine !== reporter;
+  return ((!room.roundManaged&&!room.publicReady&&!room.divisionId)||room.playState==='active') && room.status === 'pending' && !!mine && !!reporter && mine !== reporter;
 }
 export function canReport(room, uid) {
-  return !!teamOf(room, uid) && ['unreported','needs_fix'].includes(room.status);
+  return ((!room.roundManaged&&!room.publicReady&&!room.divisionId)||room.playState==='active') && !!teamOf(room, uid) && ['unreported','needs_fix'].includes(room.status);
 }
 export function validScore(a,b) {
   return Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b >= 0 && a <= 99 && b <= 99 && a !== b;

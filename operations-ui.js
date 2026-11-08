@@ -1,6 +1,8 @@
 import {divisions,defaultTeams} from './tournament.js';
 import {validScore} from './policy.js';
 import {blankSlots,drawDepartments,planDepartmentRooms,saveDepartmentDraft,publishDepartments,standings,publishedMatch,statusNames,downloadCsv} from './competition.js';
+import {mountRoundControl} from './round-control-ui.js';
+import {displaySides,playState} from './round-control.js';
 export function mountOperations({api,db,getPlayers,getDraftCount,getUser,runAction,say}){
  const root=document.getElementById('operationsRoot');let state={},rooms=[],stops=[],chatStop=()=>{},localSlots=null,slotSource=null,page=0;const matchDrafts=new Map(),openMatches=new Set();
  const el=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;return e;};
@@ -8,6 +10,7 @@ export function mountOperations({api,db,getPlayers,getDraftCount,getUser,runActi
  const confirmDrafts=()=>{if(getDraftCount())throw Error('名簿の未保存入力を先に保存してください。');};
  const teams=()=>state.teamIds||['A','B','C','D'];
  let filterDivision='',filterStatus='';
+ const roundControl=mountRoundControl({api,db,getState:()=>state,getRooms:()=>rooms,runAction,say});
  function render(){
   chatStop();chatStop=()=>{};root.replaceChildren();
   const draw=el('section');draw.id='operationDraw';draw.dataset.area='departments';draw.append(el('h2','当日の部門抽選・代理変更'),el('p',state.divisionsPublished?'部門公開済み。再抽選は禁止です。代理変更は同じチーム内だけ選べます。':'チーム発表後、部門の抽選・確認・保存・公開を行います。'));
@@ -27,7 +30,7 @@ export function mountOperations({api,db,getPlayers,getDraftCount,getUser,runActi
    draw.append(el('p',localSlots?'画面に未保存の部門変更があります。':'保存済みの部門下書きです。'));draw.lastChild.id='departmentDirty';
    draw.append(button('部門の下書きを保存（非公開）',async()=>{confirmDrafts();const next=localSlots||slots;if(!confirm('部門の下書きを保存しますか？ 公開済みの場合も代理反映は次のボタンです。'))return;await saveDepartmentDraft(api,db,slotSource||getPlayers(),state,next,{proxy:!!state.divisionsPublished});localSlots=null;slotSource=null;say('部門の下書きを保存しました。次に確認して公開・反映してください。');}));
    draw.append(button(state.divisionsPublished?'代理変更を未確定試合へ反映':'部門を公開して対戦カードを作成',async()=>{confirmDrafts();if(localSlots)throw Error('部門の下書きを先に保存してください。');if(!confirm(state.divisionsPublished?'未確定試合の出場者を変更しますか？ 確定済みの出場者は保持します。':'部門を公開し、正式な対戦カードを作成しますか？ 公開後は再抽選できません。'))return;await publishDepartments(api,db,getPlayers(),state,{proxy:!!state.divisionsPublished});say('部門・対戦カードを反映しました。');}));
-  }root.append(draw);
+  }root.append(draw,roundControl.render());
   const management=el('section');management.id='operationMatches';management.dataset.area='matches';management.append(el('h2','試合管理・結果訂正・チャット'));
   const divisionSelect=el('select'),statusSelect=el('select');for(const [value,text] of [['','全部門'],...divisions.map(d=>[d.id,d.name])]){const o=el('option',text);o.value=value;divisionSelect.append(o);}divisionSelect.value=filterDivision;divisionSelect.onchange=()=>{filterDivision=divisionSelect.value;page=0;render();};
   for(const [value,text] of [['','全状態'],...Object.entries(statusNames)]){const o=el('option',text);o.value=value;statusSelect.append(o);}statusSelect.value=filterStatus;statusSelect.onchange=()=>{filterStatus=statusSelect.value;page=0;render();};management.append(divisionSelect,statusSelect);
@@ -35,13 +38,14 @@ export function mountOperations({api,db,getPlayers,getDraftCount,getUser,runActi
   const pages=Math.max(1,Math.ceil(visible.length/6));page=Math.min(page,pages-1);management.append(el('p',`${visible.length}試合 ／ ${page+1} / ${pages}ページ`));
   const prev=el('button','前の6試合'),next=el('button','次の6試合');prev.disabled=page===0;next.disabled=page>=pages-1;prev.onclick=()=>{page--;render();};next.onclick=()=>{page++;render();};management.append(prev,next);
   for(const room of visible.slice(page*6,page*6+6)){
-   const card=el('details'),summary=el('summary',`${room.title}　${room.teamA} vs ${room.teamB}　${statusNames[room.status]||room.status}`);card.open=openMatches.has(room.id);card.ontoggle=()=>{if(card.open)openMatches.add(room.id);else openMatches.delete(room.id);};card.append(summary);
-   card.append(el('p',`${(room.teamANames||[]).join('・')} ／ ${(room.teamBNames||[]).join('・')}`));
+   const sides=displaySides(room),card=el('details'),summary=el('summary',`${room.title}　${sides.left} vs ${sides.right}　${playState(room)==='waiting'?'待機中':statusNames[room.status]||room.status}`);card.open=openMatches.has(room.id);card.ontoggle=()=>{if(card.open)openMatches.add(room.id);else openMatches.delete(room.id);};card.append(summary);
+   card.append(el('p',`${sides.leftNames.join('・')} ／ ${sides.rightNames.join('・')}`),el('p',`コート：${room.courtName||'開始時に公開'} ／ 部屋立て：${room.hostTeamId||'開始時に公開'}`));
    const a=el('input'),b=el('input'),reason=el('input');a.type=b.type='number';a.min=b.min='0';a.max=b.max='99';a.value=matchDrafts.get(room.id)?.a??room.scoreA;b.value=matchDrafts.get(room.id)?.b??room.scoreB;a.setAttribute('aria-label','A側スコア');b.setAttribute('aria-label','B側スコア');reason.placeholder='確定・訂正の理由（必須）';reason.maxLength=300;reason.value=matchDrafts.get(room.id)?.reason||'';for(const input of [a,b,reason])input.oninput=()=>matchDrafts.set(room.id,{a:a.value,b:b.value,reason:reason.value,expected:matchDrafts.get(room.id)?.expected||{updatedAt:room.updatedAt,status:room.status,scoreA:room.scoreA,scoreB:room.scoreB}});card.append(a,b,reason);
+   a.placeholder=`${room.teamA}チームのスコア`;b.placeholder=`${room.teamB}チームのスコア`;a.className='operator-score-a';b.className='operator-score-b';if(room.hostTeamId===room.teamB){b.before(a);a.before(b);}
    card.append(button('入力を破棄して最新結果を表示',async()=>{if(!confirm('この試合の未保存入力を破棄しますか？'))return;matchDrafts.delete(room.id);render();}));
    card.append(button('運営として結果を確定・訂正',async()=>{
     const av=Number(a.value),bv=Number(b.value),note=reason.value.trim();if(!a.value||!b.value||!validScore(av,bv)||!note)throw Error('異なる0〜99の整数と理由を入力してください。');
-    if(!confirm(`${room.teamA} ${av} − ${bv} ${room.teamB}で確定しますか？ 公開結果と順位に即時反映します。`))return;
+    const display=displaySides({...room,scoreA:av,scoreB:bv});if(!confirm(`${display.left} ${display.leftScore} − ${display.rightScore} ${display.right}で確定しますか？ 公開結果と順位に即時反映します。`))return;
     await api.runTransaction(db,async tx=>{
      const ref=api.doc(db,'rooms',room.id),snap=await tx.get(ref),before=snap.data();
      const expected=matchDrafts.get(room.id)?.expected||room;
@@ -73,5 +77,5 @@ export function mountOperations({api,db,getPlayers,getDraftCount,getUser,runActi
   }));data.append(reset);root.append(data);
  }
  async function deleteCollection(ref){let count=0;while(true){const snap=await api.getDocs(api.query(ref,api.limit(150)));if(snap.empty)return;const batch=api.writeBatch(db);for(const d of snap.docs)batch.delete(d.ref);await batch.commit();count+=snap.size;say(`${count}件を削除中です。画面を閉じないでください。`);}}
- return {refresh:render,start(){stops.push(api.onSnapshot(api.doc(db,'competition','state'),s=>{state=s.data()||{};render();},()=>say('大会設定を取得できません。新しいFirestoreルールが必要です。')));stops.push(api.onSnapshot(api.collection(db,'rooms'),s=>{rooms=s.docs.map(d=>({...d.data(),id:d.id})).filter(r=>divisions.some(d=>d.id===r.divisionId));render();},()=>say('試合情報を取得できません。')));},clear(){stops.forEach(s=>s());stops=[];chatStop();root.replaceChildren();state={};rooms=[];localSlots=null;slotSource=null;matchDrafts.clear();openMatches.clear();}};
+ return {refresh:render,start(){stops.push(api.onSnapshot(api.doc(db,'competition','state'),s=>{state=s.data()||{};render();},()=>say('大会設定を取得できません。新しいFirestoreルールが必要です。')));stops.push(api.onSnapshot(api.collection(db,'rooms'),s=>{rooms=s.docs.map(d=>({...d.data(),id:d.id})).filter(r=>divisions.some(d=>d.id===r.divisionId));render();},()=>say('試合情報を取得できません。')));},clear(){stops.forEach(s=>s());stops=[];chatStop();root.replaceChildren();state={};rooms=[];localSlots=null;slotSource=null;matchDrafts.clear();openMatches.clear();roundControl.clear();}};
 }
