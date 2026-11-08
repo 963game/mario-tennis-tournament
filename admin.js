@@ -6,6 +6,7 @@ import {divisions,defaultTeams,normalizedName,planRooms,createWorkflows,prepareP
 import {mountCsvImport} from './csv-import-ui.js';
 import {slotFingerprint} from './csv-import.js';
 import {mountAssessment} from './assessment-ui.js';
+import {mountTeamDraft} from './team-draft-ui.js';
 const app=initializeApp(firebaseConfig,'operator'),auth=getAuth(app),db=fs.getFirestore(app);
 const provisionAuth=getAuth(initializeApp(firebaseConfig,'provision-participants'));
 await setPersistence(provisionAuth,inMemoryPersistence);
@@ -14,11 +15,14 @@ const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 const say=text=>$('message').textContent=text;
 let players=[],requests=[],accepting=false,stops=[],busy=false,accessVersion=0;
 const drafts=new Map();
+const openRoster=new Set();
+let rosterPage=0;
 function reportError(e){say(!e?.code && e?.message?e.message:'操作できませんでした。通信と運営権限をご確認ください。アカウント準備中なら同じボタンで再開できます。');}
 async function action(button,fn){if(busy)return;busy=true;button.disabled=true;try{await fn();}catch(e){reportError(e);}finally{busy=false;button.disabled=false;}}
 const csvImporter=mountCsvImport({api:fs,db,getPlayers:()=>players,getDraftCount:()=>drafts.size,runAction:action,say});
 const assessments=mountAssessment({api:fs,db,getPlayers:()=>players,runAction:action,say});
-function clear(){stops.forEach(stop=>stop());stops=[];players=[];requests=[];drafts.clear();csvImporter.clear();assessments.clear();$('rosterDraftNotice').textContent='';$('roster').replaceChildren();$('requests').replaceChildren();$('operatorPanel').hidden=true;}
+const teamDraft=mountTeamDraft({api:fs,db,getPlayers:()=>players,getDraftCount:()=>drafts.size,runAction:action,say});
+function clear(){stops.forEach(stop=>stop());stops=[];players=[];requests=[];drafts.clear();openRoster.clear();rosterPage=0;csvImporter.clear();assessments.clear();teamDraft.clear();$('rosterDraftNotice').textContent='';$('roster').replaceChildren();$('requests').replaceChildren();$('operatorPanel').hidden=true;}
 await setPersistence(auth,browserLocalPersistence);
 onAuthStateChanged(auth,async user=>{
  const version=++accessVersion;clear();$('operatorLogin').hidden=false;
@@ -29,7 +33,7 @@ onAuthStateChanged(auth,async user=>{
   if(!role.data()?.enabled && token.claims.admin!==true){say('運営権限が未設定です。初回設定手順を確認してください。');return;}
   $('operatorLogin').hidden=true;$('operatorPanel').hidden=false;say('運営として入室中です。');
   stops.push(fs.onSnapshot(fs.collection(db,'participants'),snapshot=>{
-    players=snapshot.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.id.localeCompare(b.id));renderRoster();renderRequests();assessments.render();
+    players=snapshot.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.id.localeCompare(b.id));renderRoster();renderRequests();assessments.render();teamDraft.render();
   },reportError));
   stops.push(fs.onSnapshot(fs.collection(db,'checkins'),snapshot=>{requests=snapshot.docs.map(d=>({...d.data(),id:d.id}));renderRequests();},reportError));
   stops.push(fs.onSnapshot(fs.doc(db,'settings','checkin'),snapshot=>{accepting=snapshot.data()?.accepting===true;$('acceptingState').textContent=accepting?'受付中':'受付停止中';},reportError));
@@ -44,9 +48,22 @@ $('operatorSignOut').onclick=()=>{if(busy){say('処理が終わってから退�
 
 function renderRoster(){
  $('roster').replaceChildren();
- for(const p of players){
+ const query=normalizedName($('rosterSearch').value),filter=$('rosterFilter').value;
+ const visible=players.filter(p=>{
   const value={...p,...drafts.get(p.id)};
-  const row=document.createElement('article');
+  return (!query||normalizedName(`${p.id} ${value.name||''}`).includes(query)) &&
+   (filter==='all'||(filter==='active'&&value.active&&value.name)||(filter==='unnamed'&&!value.name?.trim())||(filter==='draft'&&drafts.has(p.id)));
+ });
+ const pages=Math.max(1,Math.ceil(visible.length/6));rosterPage=Math.min(rosterPage,pages-1);
+ $('rosterCount').textContent=`${visible.length}人 ／ ${rosterPage+1} / ${pages}ページ（1ページ6人）`;
+ $('rosterPrev').disabled=rosterPage===0;$('rosterNext').disabled=rosterPage>=pages-1;
+ for(const p of visible.slice(rosterPage*6,rosterPage*6+6)){
+  const value={...p,...drafts.get(p.id)};
+  const wrapper=document.createElement('details'),summary=document.createElement('summary'),row=document.createElement('article');
+  wrapper.className='roster-person';wrapper.open=openRoster.has(p.id);
+  summary.textContent=`${p.id}　${value.name||'名前未登録'}　${value.active?'参加':'欠員'}${drafts.has(p.id)?' ／ 未保存':''}`;
+  wrapper.ontoggle=()=>{if(wrapper.open)openRoster.add(p.id);else openRoster.delete(p.id);};
+  wrapper.append(summary,row);
   row.innerHTML=`<h3>${escape(p.id)}</h3><label>参加<input class="active" type="checkbox" ${value.active?'checked':''}></label><label>登録名<input class="name" maxlength="60" value="${escape(value.name)}"></label><p>${p.assignmentStatus==='unassigned' || !p.name?'チーム未編成・部門未決定（抽選機能は今後追加）':'所属・部門は下の手動設定から確認できます。'}</p><details><summary>所属・部門の手動設定（CSV取り込み時は不要）</summary><label>所属<select class="team">${Object.keys(defaultTeams).map(t=>`<option ${t===value.teamId?'selected':''}>${t}</option>`).join('')}</select></label><div>${divisions.map(d=>`<label><input class="division" type="checkbox" value="${d.id}" ${value.divisions?.includes(d.id)?'checked':''}>${d.name}</label>`).join('')}</div></details><button class="save">この人の設定を保存</button><details><summary>入室コードを確認</summary><code>${escape(p.authUid?`${p.id}-${p.password}`:'準備中')}</code></details><small>${p.assignedRequestUid?'コード配布済み':'未配布'} ／ ${drafts.has(p.id)?'未保存の入力あり':'保存済み'}</small>`;
   if(p.application){
     const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('dl');
@@ -71,10 +88,14 @@ function renderRoster(){
     drafts.delete(p.id);renderRoster();
     say(`${p.id}の設定を保存しました。`);
   });
-  $('roster').append(row);
+  $('roster').append(wrapper);
  }
  $('rosterDraftNotice').textContent=drafts.size?`未保存の入力：${drafts.size}人分。CSV取り込み前に保存してください。`:'';
 }
+$('rosterSearch').oninput=()=>{rosterPage=0;renderRoster();};
+$('rosterFilter').onchange=()=>{rosterPage=0;renderRoster();};
+$('rosterPrev').onclick=()=>{rosterPage--;renderRoster();};
+$('rosterNext').onclick=()=>{rosterPage++;renderRoster();};
 function renderRequests(){
  const pending=requests.filter(r=>r.status==='pending');$('pendingBadge').textContent=`🔔 未確認 ${pending.length}件`;
  $('requests').replaceChildren();
