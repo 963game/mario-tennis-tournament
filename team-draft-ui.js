@@ -1,12 +1,13 @@
 import {draftRoster,commitTeamDraft,suggestTeams,questionnaireRatings,confirmedRatings,saveEvaluations} from './team-draft.js';
 import {divisions} from './tournament.js';
+import {stableStringify} from './data-utils.js';
 export function mountTeamDraft({api,db,getPlayers,getDraftCount,runAction,say}){
  const root=document.getElementById('teamDraftRows'),notice=document.getElementById('teamDraftNotice');
  let local=null,baseline=null,reviewLocal=null,reviewBaseline=null,reviewPage=0;
  const reviewRoot=document.getElementById('evaluationRows');
  const labels=['未経験（0）','×（1）','▲（2）','○（3）','◎（4）'];
  function reviewValues(){return Object.fromEntries(draftRoster(getPlayers()).map(p=>{
-  let ratings;try{ratings=questionnaireRatings(p);}catch{ratings=[null,null,null,null];}
+  const ratings=questionnaireRatings(p,{allowUnknown:true});
   return [p.id,p.teamEvaluation?{ratings:[...p.teamEvaluation.ratings],note:p.teamEvaluation.note||''}:{ratings,note:''}];
  }));}
  function renderReviews(){
@@ -21,9 +22,10 @@ export function mountTeamDraft({api,db,getPlayers,getDraftCount,runAction,say}){
    const source=document.createElement('details'),summary=document.createElement('summary');summary.textContent='元の応募回答・実績メモを見る';source.append(summary);
    for(const f of p.application?.fields||[]){const line=document.createElement('p');line.textContent=`${f.header}：${f.value}`;source.append(line);}
    for(const [key,value] of Object.entries(p.assessment||{})){if(!value)continue;const line=document.createElement('p');line.textContent=`${divisions.find(d=>d.id===key)?.name||'全体メモ'}：${value}`;source.append(line);}row.append(source);
+   const original=questionnaireRatings(p,{allowUnknown:true});
    const remember=()=>{if(!reviewLocal){reviewLocal=structuredClone(values);reviewBaseline=structuredClone(getPlayers());}return reviewLocal[p.id];};
    divisions.forEach((d,index)=>{
-    const label=document.createElement('label');label.textContent=d.name;const select=document.createElement('select');select.setAttribute('aria-label',`${p.name}の${d.name}の運営評価`);
+    const label=document.createElement('label');label.textContent=`${d.name}（申告：${original[index]===null?'要確認':labels[original[index]]}）`;const select=document.createElement('select');select.setAttribute('aria-label',`${p.name}の${d.name}の運営評価`);
     const empty=document.createElement('option');empty.value='';empty.textContent='要確認';select.append(empty);
     labels.forEach((text,value)=>{const opt=document.createElement('option');opt.value=value;opt.textContent=text;select.append(opt);});
     select.value=values[p.id]?.ratings[index]??'';select.onchange=()=>{remember().ratings[index]=select.value===''?null:Number(select.value);document.getElementById('evaluationStatus').textContent='未保存の評価修正があります。全員の評価を確認して保存してください。';};label.append(select);row.append(label);
@@ -55,7 +57,7 @@ export function mountTeamDraft({api,db,getPlayers,getDraftCount,runAction,say}){
   const assignments=local||Object.fromEntries(people.map(p=>[p.id,p.teamDraft?.teamId||'']));
   if(!confirm(publish?'このチーム案の登録名と所属を一般公開しますか？ 部門はまだ決めません。':'運営専用のチーム案を保存しますか？ 参加者には公開しません。'))return;
   await commitTeamDraft(api,db,source,assignments,{publish});
-  for(const p of getPlayers())if(Object.hasOwn(assignments,p.id))p.teamDraft={teamId:assignments[p.id],evaluationKey:JSON.stringify(p.teamEvaluation)};
+  for(const p of getPlayers())if(Object.hasOwn(assignments,p.id))p.teamDraft={teamId:assignments[p.id],evaluationKey:stableStringify(p.teamEvaluation)};
   local=null;baseline=null;render();say(publish?'チーム名簿を公開しました。部門は未決定です。':'チーム案を運営専用の下書きとして保存しました。');
  }
  document.getElementById('saveTeamDraft').onclick=e=>runAction(e.currentTarget,()=>save(null,false));

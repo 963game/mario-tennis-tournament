@@ -1,3 +1,4 @@
+import {stableStringify} from './data-utils.js';
 export function cleanAssessment(value={}) {
  const out={};
  for(const key of ['classic-single','fever-single','classic-double','fever-double','note']){
@@ -7,7 +8,7 @@ export function cleanAssessment(value={}) {
  }
  return out;
 }
-export function assessmentFingerprint(p){return JSON.stringify([p.name||'',p.authUid||'',p.assessment||null]);}
+export function assessmentFingerprint(p){return stableStringify([p.name||'',p.authUid||'',p.assessment||null]);}
 export async function saveAssessment(api,db,person,value){
  const assessment=cleanAssessment(value),expected=assessmentFingerprint(person);
  await api.runTransaction(db,async tx=>{

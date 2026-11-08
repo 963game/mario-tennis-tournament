@@ -78,6 +78,7 @@ export function createWorkflows(api,db){
         tx.update(requestRef,{status:'approved',participantId,updatedAt:serverTimestamp()});
         tx.update(personRef,{assignedRequestUid:requestUid});
         tx.set(doc(db,'deliveries',requestUid),{participantId,name:person.name,code:`${participantId}-${person.password}`,updatedAt:serverTimestamp()});
+        tx.set(doc(db,'participantAccess',person.authUid),{participantId,name:person.name,active:true});
       });
     },
     async reflectAssignments(planned){

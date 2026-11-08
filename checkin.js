@@ -31,7 +31,7 @@ try{
     if(!user){say('参加登録した名前でチェックインを申請してください。');return;}
     stops.push(onSnapshot(doc(db,'checkins',user.uid),snap=>{
       const d=snap.data();hasRequest=!!d;$('checkinSubmit').disabled=hasRequest;
-      if(!d){say('参加登録した名前でチェックインを申請してください。');return;}
+      if(!d){$('receiptButton').firstChild.textContent='🔔 お知らせ ';say('参加登録した名前でチェックインを申請してください。');return;}
       $('checkinName').value=d.name;
       say(d.status==='pending'?'チェックインを申請しました。あとでこのサイトから確認できます。':d.status==='approved'?'チェックインが承認されました。通知からコードを確認してください。':'申請は承認されませんでした。名前を確認し、運営にお問い合わせください。');
       $('receiptButton').firstChild.textContent=d.status==='pending'?'🔔 確認待ち ':d.status==='approved'?'🔔 コードが届いています ':'🔔 運営からのお知らせ ';

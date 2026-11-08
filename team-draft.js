@@ -1,6 +1,8 @@
 import {divisions} from './tournament.js';
-export const teamFingerprint=p=>JSON.stringify([p.id,p.name,p.active,p.authUid,p.teamId,p.divisions,p.application||null,p.teamEvaluation||null,p.teamDraft||null]);
-export const evaluationSource=p=>JSON.stringify([p.name,p.application||null]);
+import {teamPublicData} from './competition.js';
+import {stableStringify} from './data-utils.js';
+export const teamFingerprint=p=>stableStringify([p.id,p.name,p.active,p.authUid,p.teamId,p.divisions,p.application||null,p.assessment||null,p.teamEvaluation||null,p.teamDraft||null]);
+export const evaluationSource=p=>stableStringify([p.name,p.application||null,p.assessment||null]);
 export function confirmedRatings(p){
  const review=p.teamEvaluation;
  if(!review||review.source!==evaluationSource(p)||!Array.isArray(review.ratings)||review.ratings.length!==4||review.ratings.some(x=>!Number.isInteger(x)||x<0||x>4))throw Error(`${p.name}：配分前に運営の評価確認・保存が必要です。`);
@@ -23,14 +25,14 @@ export async function saveEvaluations(api,db,players,values){
  return Object.fromEntries(updates.map(({p,review})=>[p.id,review]));
 }
 export function draftRoster(players){return players.filter(p=>/^P1(?:0[1-9]|1[0-9]|2[0-4])$/.test(p.id)&&p.active&&p.name?.trim());}
-export function questionnaireRatings(person){
+export function questionnaireRatings(person,{allowUnknown=false}={}){
  return divisions.map(d=>{
   const fields=(person.application?.fields||[]).filter(f=>String(f.header).normalize('NFKC').includes(d.name.normalize('NFKC')));
-  if(fields.length!==1)throw Error(`${person.name}：${d.name}の自己評価を一意に確認できません。応募回答を確認してください。`);
+  if(fields.length!==1){if(allowUnknown)return null;throw Error(`${person.name}：${d.name}の自己評価を一意に確認できません。応募回答を確認してください。`);}
   const value=String(fields[0].value).trim();
   if(/^(やったことがない|やったことない|未経験)(?:$|[：:])/u.test(value))return 0;
   const score=({'◎':4,'○':3,'〇':3,'◯':3,'▲':2,'×':1,'✕':1})[value[0]];
-  if(score===undefined)throw Error(`${person.name}：${d.name}の自己評価が未回答または不明です。`);
+  if(score===undefined){if(allowUnknown)return null;throw Error(`${person.name}：${d.name}の自己評価が未回答または不明です。`);}
   return score;
  });
 }
@@ -71,19 +73,27 @@ export async function commitTeamDraft(api,db,players,assignments,{publish=false}
   const snapshots=await Promise.all(expected.map(([id])=>tx.get(api.doc(db,'participants',id))));
   for(let i=0;i<expected.length;i++)if(!snapshots[i].exists()||teamFingerprint({...snapshots[i].data(),id:expected[i][0]})!==expected[i][1])throw Error('名簿または下書きが更新されました。最新の内容を読み直してから作成してください。');
   if(publish){
-   if(people.some(p=>p.teamDraft?.evaluationKey!==JSON.stringify(p.teamEvaluation)||p.teamDraft?.teamId!==assignments[p.id]))throw Error('評価の変更後はチーム案を作り直し、下書きを保存してから公開してください。');
+   if(people.some(p=>p.teamDraft?.evaluationKey!==stableStringify(p.teamEvaluation)||p.teamDraft?.teamId!==assignments[p.id]))throw Error('評価の変更後はチーム案を作り直し、下書きを保存してから公開してください。');
    if(people.some(p=>p.divisions?.length))throw Error('部門決定後はこの画面からチームを変更できません。');
    const pairs=['AB','CD','AC','BD','AD','BC'];
    const rooms=await Promise.all(divisions.flatMap(d=>pairs.map((pair,i)=>tx.get(api.doc(db,'rooms',`${d.id}-r${Math.floor(i/2)+1}-${pair}`)))));
    if(rooms.some(s=>s.exists()))throw Error('本番の対戦カード作成後はチーム公開・再編成できません。');
+   const stage=await tx.get(api.doc(db,'competition','state'));
+   if(stage.data()?.divisionsPublished)throw Error('部門発表後はチームを組み直せません。');
   }
   for(const p of people)tx.update(api.doc(db,'participants',p.id),{
-   teamDraft:{teamId:assignments[p.id],evaluationKey:JSON.stringify(p.teamEvaluation)},teamDraftUpdatedAt:api.serverTimestamp(),
+   teamDraft:{teamId:assignments[p.id],evaluationKey:stableStringify(p.teamEvaluation)},teamDraftUpdatedAt:api.serverTimestamp(),
    ...(publish?{teamId:assignments[p.id],assignmentStatus:'team-assigned'}:{})
   });
   if(publish)tx.set(api.doc(db,'public','teams'),{
+   ...teamPublicData(people.map(p=>({...p,teamId:assignments[p.id]})),teams),
    summary:teams.map(t=>`${t}チーム\n${people.filter(p=>assignments[p.id]===t).map(p=>p.name).join('・')}`).join('\n\n'),
    updatedAt:api.serverTimestamp()
   });
+  if(publish){
+   tx.set(api.doc(db,'competition','state'),{teamsPublished:true,teamIds:teams,divisionsPublished:false,updatedAt:api.serverTimestamp()});
+   tx.set(api.doc(db,'public','config'),{teamIds:teams,divisionsPublished:false,updatedAt:api.serverTimestamp()});
+   for(const p of people)tx.set(api.doc(db,'participantAccess',p.authUid),{participantId:p.id,name:p.name,active:true});
+  }
  });
 }

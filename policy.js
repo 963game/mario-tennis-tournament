@@ -27,6 +27,6 @@ export function sameReport(before, current) {
 }
 export function participantCredential(code) {
   const match = /^(P\d{2,3})-([^\r\n]{9,128})$/i.exec(code.trim());
-  if (!match) throw Error('参加者コードの形式が違います（P01-の後に登録済みパスワード9〜128文字）');
+  if (!match) throw Error('参加者コードの形式が違います。配布されたコードを省略せず、そのまま貼り付けてください。');
   return {email: match[1].toLowerCase() + '@players.invalid', password: match[2]};
 }

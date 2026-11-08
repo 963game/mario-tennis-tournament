@@ -115,7 +115,7 @@ export function planCsvImport(parsed,options,players){
   const unused=roster.filter(p=>!usedSlots.has(p.id) && isEmptySlot(p) && p.active===true).map(p=>p.id);
   const finalActive=roster.filter(p=>!unused.includes(p.id) && (usedSlots.has(p.id)?(isEmptySlot(p)?true:p.active):p.active));
   if(finalActive.length>24)errors.push('取り込み後の参加者が24人を超えます。名簿を確認してください。');
-  if(included.length===18)warnings.push('18人の名簿を保存できます。3チーム編成・12試合の生成は後続の実装で対応します。');
+  if(included.length===18)warnings.push('18人の場合は3チーム編成・全12試合になります。');
   else if(included.length>=19 && included.length<=23)warnings.push(`${included.length}人分を取り込みます。仕様どおり24人を目指して追加募集できます。`);
   if(roster.some(p=>p.name && !usedSlots.has(p.id)))warnings.push('CSVに含まれない既存参加者の情報・参加状態は、そのまま残します。');
   return {errors:[...new Set(errors)],warnings:[...new Set(warnings)],records,items,unused,
@@ -130,7 +130,11 @@ export async function commitCsvImport(api,db,plan){
       if(!snap.exists() || slotFingerprint({...snap.data(),id:expected.id})!==expected.fingerprint)
         throw Error('名簿が更新されています。最新の名簿でプレビューを作り直してください。');
     }
-    for(const item of plan.items)tx.update(api.doc(db,'participants',item.id),{...item.patch,importedAt:api.serverTimestamp()});
-    for(const id of plan.unused)tx.update(api.doc(db,'participants',id),{active:false});
+    const people=new Map(snapshots.map((snap,i)=>[plan.expectedRoster[i].id,snap.data()]));
+    for(const item of plan.items){
+      tx.update(api.doc(db,'participants',item.id),{...item.patch,importedAt:api.serverTimestamp()});
+      const p=people.get(item.id);if(p?.authUid)tx.set(api.doc(db,'participantAccess',p.authUid),{participantId:item.id,name:item.patch.name,active:item.patch.active??p.active});
+    }
+    for(const id of plan.unused){tx.update(api.doc(db,'participants',id),{active:false});const p=people.get(id);if(p?.authUid)tx.set(api.doc(db,'participantAccess',p.authUid),{participantId:id,name:p.name||'',active:false});}
   });
 }
