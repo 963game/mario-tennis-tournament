@@ -3,6 +3,8 @@ import {getAuth,setPersistence,browserLocalPersistence,inMemoryPersistence,onAut
 import * as fs from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 import {firebaseConfig} from './firebase-config.js';
 import {divisions,defaultTeams,normalizedName,planRooms,createWorkflows,prepareParticipants,publicMatches} from './tournament.js';
+import {mountCsvImport} from './csv-import-ui.js';
+import {slotFingerprint} from './csv-import.js';
 const app=initializeApp(firebaseConfig,'operator'),auth=getAuth(app),db=fs.getFirestore(app);
 const provisionAuth=getAuth(initializeApp(firebaseConfig,'provision-participants'));
 await setPersistence(provisionAuth,inMemoryPersistence);
@@ -10,9 +12,11 @@ const flows=createWorkflows(fs,db),$=id=>document.getElementById(id);
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const say=text=>$('message').textContent=text;
 let players=[],requests=[],accepting=false,stops=[],busy=false,accessVersion=0;
+const drafts=new Map();
 function reportError(e){say(!e?.code && e?.message?e.message:'操作できませんでした。通信と運営権限をご確認ください。アカウント準備中なら同じボタンで再開できます。');}
 async function action(button,fn){if(busy)return;busy=true;button.disabled=true;try{await fn();}catch(e){reportError(e);}finally{busy=false;button.disabled=false;}}
-function clear(){stops.forEach(stop=>stop());stops=[];players=[];requests=[];$('roster').replaceChildren();$('requests').replaceChildren();$('operatorPanel').hidden=true;}
+const csvImporter=mountCsvImport({api:fs,db,getPlayers:()=>players,getDraftCount:()=>drafts.size,runAction:action,say});
+function clear(){stops.forEach(stop=>stop());stops=[];players=[];requests=[];drafts.clear();csvImporter.clear();$('rosterDraftNotice').textContent='';$('roster').replaceChildren();$('requests').replaceChildren();$('operatorPanel').hidden=true;}
 await setPersistence(auth,browserLocalPersistence);
 onAuthStateChanged(auth,async user=>{
  const version=++accessVersion;clear();$('operatorLogin').hidden=false;
@@ -39,17 +43,35 @@ $('operatorSignOut').onclick=()=>{if(busy){say('処理が終わってから退�
 function renderRoster(){
  $('roster').replaceChildren();
  for(const p of players){
+  const value={...p,...drafts.get(p.id)};
   const row=document.createElement('article');
-  row.innerHTML=`<h3>${escape(p.id)}</h3><label>参加<input class="active" type="checkbox" ${p.active?'checked':''}></label><label>登録名<input class="name" maxlength="60" value="${escape(p.name)}"></label><label>所属<select class="team">${Object.keys(defaultTeams).map(t=>`<option ${t===p.teamId?'selected':''}>${t}</option>`).join('')}</select></label><div>${divisions.map(d=>`<label><input class="division" type="checkbox" value="${d.id}" ${p.divisions?.includes(d.id)?'checked':''}>${d.name}</label>`).join('')}</div><button class="save">この人の設定を保存</button><details><summary>入室コードを確認</summary><code>${escape(p.authUid?`${p.id}-${p.password}`:'準備中')}</code></details><small>${p.assignedRequestUid?'コード配布済み':'未配布'} ／ 設定は1人ずつ保存してください。</small>`;
+  row.innerHTML=`<h3>${escape(p.id)}</h3><label>参加<input class="active" type="checkbox" ${value.active?'checked':''}></label><label>登録名<input class="name" maxlength="60" value="${escape(value.name)}"></label><p>${p.assignmentStatus==='unassigned' || !p.name?'チーム未編成・部門未決定（抽選機能は今後追加）':'所属・部門は下の手動設定から確認できます。'}</p><details><summary>所属・部門の手動設定（CSV取り込み時は不要）</summary><label>所属<select class="team">${Object.keys(defaultTeams).map(t=>`<option ${t===value.teamId?'selected':''}>${t}</option>`).join('')}</select></label><div>${divisions.map(d=>`<label><input class="division" type="checkbox" value="${d.id}" ${value.divisions?.includes(d.id)?'checked':''}>${d.name}</label>`).join('')}</div></details><button class="save">この人の設定を保存</button><details><summary>入室コードを確認</summary><code>${escape(p.authUid?`${p.id}-${p.password}`:'準備中')}</code></details><small>${p.assignedRequestUid?'コード配布済み':'未配布'} ／ ${drafts.has(p.id)?'未保存の入力あり':'保存済み'}</small>`;
+  if(p.application){
+    const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('dl');
+    summary.textContent='応募時の回答（運営専用・実力の点数計算は未実施）';
+    for(const field of p.application.fields||[]){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=field.header;dd.textContent=field.value;dd.style.whiteSpace='pre-wrap';list.append(dt,dd);}
+    details.append(summary,list);row.append(details);
+  }
+  const readValues=()=>({name:row.querySelector('.name').value.trim(),active:row.querySelector('.active').checked,
+    teamId:row.querySelector('.team').value,divisions:[...row.querySelectorAll('.division:checked')].map(el=>el.value)});
+  const remember=()=>{drafts.set(p.id,{...readValues(),baseFingerprint:drafts.get(p.id)?.baseFingerprint||slotFingerprint(p)});$('rosterDraftNotice').textContent=`未保存の入力：${drafts.size}人分。入力はほかの人を保存しても保持します。CSV取り込み前に保存してください。`;};
+  row.addEventListener('input',remember);row.addEventListener('change',remember);
   row.querySelector('.save').onclick=()=>action(row.querySelector('.save'),async()=>{
-    const name=row.querySelector('.name').value.trim(),active=row.querySelector('.active').checked;
-    if(active && !name)throw Error('参加者の登録名を入力してください。');
+    const edited=readValues();
+    if(edited.active && !edited.name)throw Error('参加者の登録名を入力してください。');
     if(!confirm(`${p.id}の名前・所属・出場部門を保存しますか？ 試合への反映は別のボタンで行います。`))return;
-    await fs.updateDoc(fs.doc(db,'participants',p.id),{name,active,teamId:row.querySelector('.team').value,divisions:[...row.querySelectorAll('.division:checked')].map(el=>el.value)});
+    const expected=drafts.get(p.id)?.baseFingerprint||slotFingerprint(p);
+    await fs.runTransaction(db,async tx=>{
+      const ref=fs.doc(db,'participants',p.id),snap=await tx.get(ref);
+      if(!snap.exists() || slotFingerprint({...snap.data(),id:p.id})!==expected)throw Error('この人の情報がほかの操作で更新されました。入力を控え、画面を読み直して確認してください。');
+      tx.update(ref,{...edited,assignmentStatus:p.assignmentStatus==='unassigned' && edited.teamId===p.teamId && !edited.divisions.length?'unassigned':'manual'});
+    });
+    drafts.delete(p.id);renderRoster();
     say(`${p.id}の設定を保存しました。`);
   });
   $('roster').append(row);
  }
+ $('rosterDraftNotice').textContent=drafts.size?`未保存の入力：${drafts.size}人分。CSV取り込み前に保存してください。`:'';
 }
 function renderRequests(){
  const pending=requests.filter(r=>r.status==='pending');$('pendingBadge').textContent=`🔔 未確認 ${pending.length}件`;
